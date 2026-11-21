@@ -9,6 +9,9 @@ Equal(0.24m, result.MaxDrawdownPct);
 Equal(2, result.FillCount);
 Equal(result, Backtest.Run(ticks, new FirstSignal(), options));
 
+Console.WriteLine(FormattableString.Invariant(
+    $"Next-tick example: fills={result.FillCount}, total fees={result.TotalFees:F2}, ending cash={result.EndingCash:F2}"));
+
 MarketTick[] flat = [Tick(0, 100), Tick(1, 100), Tick(2, 100)];
 BacktestResult slipped = Backtest.Run(flat, new FirstSignal(), new BacktestOptions(1_000m, 110m, 100m, 1_000m));
 Equal(978m, slipped.EndingCash);

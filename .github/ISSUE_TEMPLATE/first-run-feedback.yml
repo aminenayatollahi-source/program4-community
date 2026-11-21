@@ -3,6 +3,16 @@ description: Share what happened when you ran the demo or tried your own CSV.
 title: "[First run]: "
 body:
   - type: dropdown
+    id: installation
+    attributes:
+      label: How did you run the program?
+      options:
+        - Downloaded a release package
+        - Built from source
+        - Tried both methods
+    validations:
+      required: true
+  - type: dropdown
     id: scenario
     attributes:
       label: What did you try?
@@ -15,10 +25,15 @@ body:
   - type: input
     id: environment
     attributes:
-      label: Operating system and .NET SDK version
-      placeholder: "Windows 11, .NET SDK 10.0.x"
+      label: Operating system
+      placeholder: "Windows 11 x64 or Ubuntu 24.04 x64"
     validations:
       required: true
+  - type: input
+    id: sdk
+    attributes:
+      label: .NET SDK version (source builds only, optional)
+      placeholder: "10.0.x"
   - type: textarea
     id: outcome
     attributes:
