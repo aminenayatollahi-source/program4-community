@@ -2,7 +2,20 @@
 
 Run repeatable, offline backtests on historical market ticks with C# and .NET 10. The package includes a small simulation library, a command-line example and synthetic market data.
 
-## Quick start
+## Run the packaged demo
+
+Download the archive for your system. Both x64 packages include the .NET runtime and synthetic tick data.
+
+| System | Download | Command |
+| --- | --- | --- |
+| Windows x64 (PowerShell) | [ZIP](https://github.com/aminenayatollahi-source/program4-community/releases/download/v0.1.1/program4-community-v0.1.1-win-x64.zip) | `.\Program4.Cli.exe samples\ticks.csv DEMO` |
+| Linux x64 | [tar.gz](https://github.com/aminenayatollahi-source/program4-community/releases/download/v0.1.1/program4-community-v0.1.1-linux-x64.tar.gz) | `./Program4.Cli samples/ticks.csv DEMO` |
+
+Extract the archive, open a terminal in the folder containing `QUICKSTART.txt`, and run the command above. Look for `TickCount` = 16, `FillCount` = 4 and `EndingCash` of about 99777.66 in the JSON output. To try your own CSV, replace the sample path and symbol in the same command.
+
+[Report your first run](https://github.com/aminenayatollahi-source/program4-community/issues/new?template=first-run-feedback.yml)
+
+## Build from source
 
 Install the .NET 10 SDK. Clone this repository or download the source archive from the [release page](https://github.com/aminenayatollahi-source/program4-community/releases), then run these commands from the source directory.
 
@@ -13,8 +26,6 @@ dotnet run --project tests/Program4.Tests --configuration Release --no-build
 ```
 
 The CLI prints a JSON summary with starting and ending cash, return, maximum drawdown, simulated fill count and fees. Pass two additional positive integers to change the fast and slow moving-average windows. The defaults are 2 and 4 ticks.
-
-The bundled `DEMO` run should report `TickCount: 16`, `FillCount: 4`, and ending cash of about `99777.66`. Running the same command again should return identical JSON.
 
 ## Run your own CSV
 
@@ -42,6 +53,18 @@ Each strategy signal can fill from the next tick's quote. Entries use ask plus s
 
 To test a different signal, implement `IHistoricalSignalStrategy` and pass a fresh instance to `Backtest.Run`. The library accepts `BacktestOptions` for capital, trade size, fees and slippage. There are no external package dependencies.
 
+## Worked example: a next-tick fill
+
+An entry signal arrives at a price of 100. The next quote is 120, so a trade of 240 buys two units. On the final tick, the simulator sells both at 150. With a 1% fee on each side and zero slippage, the entry fee is 2.40 and the exit fee is 3.00. Starting with 1000, the account ends with `1000 - 240 - 2.40 + 300 - 3.00 = 1054.60`. A fill at the signal price would buy a different quantity.
+
+Run the [C# example and its assertions](tests/Program4.Tests/Program.cs) from the source directory with the .NET 10 SDK:
+
+```sh
+dotnet run --project tests/Program4.Tests --configuration Release
+```
+
+The example prints the fill count, total fees and ending cash calculated by the simulation. The test checks all three values.
+
 ## Contributing
 
-If you try the example or run a backtest with your own CSV, share what worked and where you got stuck using the [first-run feedback form](https://github.com/aminenayatollahi-source/program4-community/issues/new?template=first-run-feedback.yml). Include your OS, .NET SDK version and the command you ran. For input problems, use a synthetic example you can share publicly. The test harness runs as a console application and returns a nonzero exit code on failure. Please run it before opening a pull request.
+If you try the example or run a backtest with your own CSV, share what worked and where you got stuck using the [first-run feedback form](https://github.com/aminenayatollahi-source/program4-community/issues/new?template=first-run-feedback.yml). Include your operating system, whether you used a package or built from source, and what happened. For input problems, use a synthetic example you can share publicly. The test harness runs as a console application and returns a nonzero exit code on failure. Please run it before opening a pull request.
