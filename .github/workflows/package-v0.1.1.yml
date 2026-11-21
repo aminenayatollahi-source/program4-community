@@ -1,0 +1,142 @@
+name: Package v0.1.1
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/package-v0.1.1.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: program4-release-v0.1.1
+  cancel-in-progress: false
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+            extension: zip
+          - os: ubuntu-latest
+            rid: linux-x64
+            extension: tar.gz
+    runs-on: ${{ matrix.os }}
+    env:
+      RID: ${{ matrix.rid }}
+      ARCHIVE_EXT: ${{ matrix.extension }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: 'ac6d528b3e53a94f8210561225dfe6fe9b0f849e'
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+      - name: Build self-contained CLI
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $name = "program4-community-v0.1.1-$env:RID"
+          $stage = Join-Path $env:RUNNER_TEMP 'package'
+          $app = Join-Path $stage $name
+          New-Item -ItemType Directory -Path "$app/samples",dist -Force | Out-Null
+          dotnet publish src/Program4.Cli/Program4.Cli.csproj -c Release -r $env:RID --self-contained true --source https://api.nuget.org/v3/index.json -o $app
+          if ($LASTEXITCODE -ne 0) { throw 'dotnet publish failed' }
+          Copy-Item LICENSE -Destination $app
+          Copy-Item samples/ticks.csv -Destination "$app/samples/ticks.csv"
+          if ($env:RID -eq 'win-x64') {
+            $launch = '.\Program4.Cli.exe samples\ticks.csv DEMO'
+          } else {
+            $launch = './Program4.Cli samples/ticks.csv DEMO'
+          }
+          @(
+            'Program 4 Community v0.1.1',
+            '',
+            'Open a terminal in the extracted folder and run:',
+            $launch,
+            '',
+            'Expected result: 16 ticks and 4 simulated fills.',
+            'The .NET runtime is included. The bundled sample data is synthetic.',
+            'https://github.com/aminenayatollahi-source/program4-community/issues/1'
+          ) | Set-Content -Encoding utf8 "$app/QUICKSTART.txt"
+          $archive = "dist/$name.$env:ARCHIVE_EXT"
+          if ($env:RID -eq 'win-x64') {
+            [IO.Compression.ZipFile]::CreateFromDirectory($app, $archive, [IO.Compression.CompressionLevel]::Optimal, $true)
+          } else {
+            tar -czf $archive -C $stage $name
+            if ($LASTEXITCODE -ne 0) { throw 'tar failed' }
+          }
+
+      - name: Test the extracted Windows archive
+        if: matrix.rid == 'win-x64'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $name = 'program4-community-v0.1.1-win-x64'
+          $stage = Join-Path $env:RUNNER_TEMP 'extracted'
+          Expand-Archive "dist/$name.zip" -DestinationPath $stage
+          $app = Join-Path $stage $name
+          if (!(Test-Path "$app/coreclr.dll")) { throw 'Bundled runtime is missing' }
+          $env:DOTNET_ROOT = Join-Path $stage 'no-dotnet'
+          $env:DOTNET_ROOT_X64 = $env:DOTNET_ROOT
+          Push-Location $app
+          try {
+            $output = & .\Program4.Cli.exe samples\ticks.csv DEMO
+            if ($LASTEXITCODE -ne 0) { throw 'Windows executable failed' }
+            $result = $output | ConvertFrom-Json
+            if ($result.TickCount -ne 16 -or $result.FillCount -ne 4) { throw 'Unexpected demo result' }
+            $output
+          } finally { Pop-Location }
+
+      - name: Test the extracted Linux archive without installed .NET
+        if: matrix.rid == 'linux-x64'
+        shell: bash
+        run: |
+          set -euo pipefail
+          name=program4-community-v0.1.1-linux-x64
+          mkdir -p "$RUNNER_TEMP/extracted"
+          tar -xzf "dist/$name.tar.gz" -C "$RUNNER_TEMP/extracted"
+          test -f "$RUNNER_TEMP/extracted/$name/libcoreclr.so"
+          docker run --rm --network none \
+            --mount "type=bind,source=$RUNNER_TEMP/extracted/$name,target=/app,readonly" \
+            --workdir /app mcr.microsoft.com/dotnet/runtime-deps:10.0 \
+            /bin/sh -ec 'if command -v dotnet >/dev/null; then exit 1; fi; ./Program4.Cli samples/ticks.csv DEMO' > demo.json
+          python3 -c 'import json; r=json.load(open("demo.json")); assert (r["TickCount"], r["FillCount"]) == (16, 4); print(r)'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: program4-community-${{ matrix.rid }}
+          path: dist/*
+          if-no-files-found: error
+
+  release-assets:
+    if: github.repository == 'aminenayatollahi-source/program4-community' && github.ref == 'refs/heads/main'
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PUBLIC_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: program4-community-*
+          path: dist
+          merge-multiple: true
+      - name: Attach the tested archives and checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist
+          windows=program4-community-v0.1.1-win-x64.zip
+          linux=program4-community-v0.1.1-linux-x64.tar.gz
+          test -f "$windows"
+          test -f "$linux"
+          sha256sum "$windows" "$linux" > SHA256SUMS.txt
+          gh release upload v0.1.1 "$windows" "$linux" SHA256SUMS.txt --repo "$PUBLIC_REPO"
