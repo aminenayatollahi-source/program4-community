@@ -22,8 +22,8 @@ Save the following example as `my-ticks.csv` in the repository root, or use tick
 
 ```csv
 timestamp,symbol,bid,ask,price
-2026-01-01T00:00:00.0000000+00:00,ABC,99.9,100.1,100
-2026-01-01T00:01:00.0000000+00:00,ABC,100.9,101.1,101
+2026-01-01T00:00:00Z,ABC,99.9,100.1,100
+2026-01-01T00:01:00Z,ABC,100.9,101.1,101
 ```
 
 ```sh
@@ -34,7 +34,7 @@ The two-row example should report `TickCount: 2` and `FillCount: 0`. It demonstr
 
 ## Data format
 
-The CSV header is `timestamp,symbol,bid,ask,price`. Use the round-trip .NET timestamp format, for example `2026-01-01T00:00:00.0000000+00:00`, and decimal points. Fields must be unquoted. Rows for the selected symbol must have strictly increasing timestamps and positive prices, with bid at or below ask. The sample symbol `DEMO` is synthetic.
+The CSV header is `timestamp,symbol,bid,ask,price`. Use ISO 8601 timestamps with seconds and an explicit offset. `2026-01-01T00:00:00Z`, `2026-01-01T03:30:00+03:30`, and the .NET round-trip format are supported. Fractional seconds are optional and can have up to seven digits. Use decimal points and unquoted fields. If a row cannot be parsed, the CLI reports its line number and the invalid field. Rows for the selected symbol must have strictly increasing timestamps and positive prices, with bid at or below ask. The sample symbol `DEMO` is synthetic.
 
 ## Simulation
 
