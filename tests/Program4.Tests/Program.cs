@@ -25,8 +25,22 @@ Equal(99.9m, TickCsv.Read(csv, "DEMO").Single().Bid);
 Throws<FormatException>(() => TickCsv.Read(new StringReader(TickCsv.Header + "\nbad,DEMO,1,1,1"), "DEMO"));
 Throws<FormatException>(() => TickCsv.Read(new StringReader(TickCsv.Header), "DEMO"));
 
+const string ZonedTick = "\n2026-01-01T03:30:02.123+03:30,DEMO,99.9,100.1,100";
+const string UtcTick = "\n2026-01-01T00:00:02.123Z,DEMO,99.9,100.1,100";
+const string PlainUtcTick = "\n2026-01-01T00:00:03Z,DEMO,99.9,100.1,100";
+const string PlainOffsetTick = "\n2026-01-01T04:00:03+04:00,DEMO,99.9,100.1,100";
+Equal(ReadTick(UtcTick).Timestamp, ReadTick(ZonedTick).Timestamp);
+Equal(ReadTick(PlainUtcTick).Timestamp, ReadTick(PlainOffsetTick).Timestamp);
+Equal(TimeSpan.FromHours(3.5), ReadTick(ZonedTick).Timestamp.Offset);
+Equal(TimeSpan.Zero, ReadTick(UtcTick).Timestamp.Offset);
+Throws<FormatException>(() => ReadTick("\n2026-01-01T00:00:02,DEMO,99.9,100.1,100"), "Line 2: timestamp");
+Throws<FormatException>(() => ReadTick("\n\n2026-01-01T00:00:02Z,DEMO,0,100.1,100"), "Line 3: bid");
+Throws<FormatException>(() => ReadTick("\n2026-01-01T00:00:02Z,DEMO,99.9,99.8,100"), "Line 2: ask");
+
 Console.WriteLine("PASS: next-tick execution, costs, drawdown, repeatability, and input validation.");
 return 0;
+
+static MarketTick ReadTick(string row) => TickCsv.Read(new StringReader(TickCsv.Header + row), "DEMO").Single();
 
 static MarketTick Tick(int minute, decimal price) =>
     new(new DateTimeOffset(2026, 1, 1, 0, minute, 0, TimeSpan.Zero), "DEMO", price, price, price);
@@ -37,10 +51,15 @@ static void Equal<T>(T expected, T actual)
         throw new InvalidOperationException($"Expected {expected}, got {actual}.");
 }
 
-static void Throws<T>(Action action) where T : Exception
+static void Throws<T>(Action action, string? messagePrefix = null) where T : Exception
 {
     try { action(); }
-    catch (T) { return; }
+    catch (T error)
+    {
+        if (messagePrefix is not null && !error.Message.StartsWith(messagePrefix, StringComparison.Ordinal))
+            throw new InvalidOperationException($"Expected an error starting with {messagePrefix}, got {error.Message}.");
+        return;
+    }
     throw new InvalidOperationException($"Expected {typeof(T).Name}.");
 }
 
