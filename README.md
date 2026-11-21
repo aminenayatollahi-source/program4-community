@@ -15,6 +15,8 @@ Extract the archive, open a terminal in the folder containing `QUICKSTART.txt`, 
 
 [Report your first run](https://github.com/aminenayatollahi-source/program4-community/issues/new?template=first-run-feedback.yml)
 
+<a name="quick-start"></a>
+
 ## Build from source
 
 Install the .NET 10 SDK. Clone this repository or download the source archive from the [release page](https://github.com/aminenayatollahi-source/program4-community/releases), then run these commands from the source directory.
