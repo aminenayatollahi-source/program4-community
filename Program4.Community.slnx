@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="src/Program4.Backtesting/Program4.Backtesting.csproj" />
+  <Project Path="src/Program4.Cli/Program4.Cli.csproj" />
+  <Project Path="tests/Program4.Tests/Program4.Tests.csproj" />
+</Solution>
