@@ -1,5 +1,7 @@
 # Program 4 Community
 
+[Try the interactive fill explorer](https://aminenayatollahi-source.github.io/program4-community/) — select an order to see its signal and execution, or change a sample price and replay the backtest in your browser.
+
 Run repeatable, offline backtests on historical market ticks with C# and .NET 10. The package includes a small simulation library, a command-line example and synthetic market data.
 
 ## Run the packaged demo
