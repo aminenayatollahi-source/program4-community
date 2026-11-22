@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>Fill explorer · Program 4 Community</title>
+<style>
+*{box-sizing:border-box}body{margin:0;color:#19292d;background:#f4f7f6;font:16px/1.5 'Segoe UI',Arial,sans-serif}header{background:#142e32;color:white}header div,main{max-width:1040px;margin:auto;padding:16px 24px}header div{display:flex;align-items:center;justify-content:space-between;gap:12px}header a{color:#def3ec}a{color:#006955;text-underline-offset:3px}main{padding-top:34px;padding-bottom:40px}h1{font-size:clamp(2rem,5vw,3rem);line-height:1.1;margin:0 0 8px;letter-spacing:-.045em}h2{font-size:1.15rem;margin:0 0 10px}p{margin:0 0 12px}.lead{color:#435b60;max-width:70ch}.stats,.layout{display:grid;gap:14px;margin:20px 0}.stats{grid-template-columns:repeat(3,1fr)}.layout{grid-template-columns:1.3fr 1fr}.card,.stats>div{background:white;border:1px solid #cddbd7;border-radius:10px;padding:18px}.stats small{display:block;color:#415754}.stats strong{font-size:clamp(1.1rem,3vw,1.7rem);font-variant-numeric:tabular-nums}.chart canvas{width:100%;height:210px;display:block}.tools{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}button,select,input{font:inherit;border:1px solid #9db2ab;border-radius:6px;background:white;color:inherit;padding:7px 10px}button{cursor:pointer}button[aria-pressed=true],.apply{color:white;background:#126553;border-color:#126553}button:hover{border-color:#136e58}:focus-visible{outline:3px solid #ad6500;outline-offset:2px}label{display:grid;gap:5px}form{display:flex;align-items:end;flex-wrap:wrap;gap:10px}input{width:9ch}.detail{border-left:3px solid #227762;padding-left:12px;margin-top:14px}.detail p{margin:5px 0}.meta,footer{color:#455b5c;font-size:.92rem}.feedback{display:inline-block;margin-top:14px}footer{margin-top:14px}table{width:100%;border-collapse:collapse;text-align:right;font-variant-numeric:tabular-nums}td,th{padding:4px;border-bottom:1px solid #dae3e0}summary{cursor:pointer}details{margin-top:14px}output{display:block;color:#30554c;margin-top:8px}@media(max-width:700px){.layout{grid-template-columns:1fr}.stats{gap:6px}.stats>div{padding:9px}.card{padding:14px}main,header div{padding-left:14px;padding-right:14px}}
+</style>
+<header><div><strong>Program 4 Community</strong><a href="https://github.com/aminenayatollahi-source/program4-community">GitHub repository</a></div></header>
+<main><h1>Fill explorer</h1><p class="lead">Follow a moving-average signal from one tick to the quote that fills the order. Select a fill, then change a sample price to see what moves.</p>
+<noscript>This interactive demo needs JavaScript.</noscript>
+<section class="stats" aria-label="Replay summary"><div><small>Market ticks</small><strong id="count"></strong></div><div><small>Order fills</small><strong id="num"></strong></div><div><small>Ending cash</small><strong id="cash"></strong></div></section>
+<section class="card chart"><h2>Price by tick</h2><canvas id="plot" aria-label="Sample prices by tick. The selected signal and execution are marked; exact values follow below."></canvas><p class="meta">Line: last trade price · Gold ring: signal · Green square: execution tick</p></section>
+<div class="layout"><section class="card"><h2>Inspect a fill</h2><div class="tools" id="choices"></div><div class="detail" id="detail" aria-live="polite"></div></section>
+<section class="card"><h2>Change a sample price</h2><p>Bid and ask move with the price, keeping the sample spread of 0.20.</p><form id="edit"><label>Tick<select id="tick"></select></label><label>Price<input id="price" type="number" step="0.01" min="0.11" max="1000000" required></label><button class="apply">Apply</button></form><div class="tools"><button id="reset" type="button">Reset sample</button></div><output id="status" aria-live="polite"></output></section></div>
+<details class="card"><summary>View the 16 input ticks</summary><table><thead><tr><th>Tick</th><th>UTC</th><th>Bid</th><th>Ask</th><th>Last</th></tr></thead><tbody id="rows"></tbody></table></details>
+<footer>DEMO · Synthetic ticks, 1 Jan 2026 UTC. Starting cash 100,000 · Order size 2,000 · Fee 5 bps · Slippage 2 bps. Browser calculations use the 2/4-tick strategy and default settings from v0.1.1. Tick 1 is the first data row after the CSV header.<br><a class="feedback" href="https://github.com/aminenayatollahi-source/program4-community/issues/1">Was the fill on the tick you expected? Share your result.</a></footer></main>
+<script>
+'use strict';
+const sample = [[99.9,100.1,100],[98.9,99.1,99],[97.9,98.1,98],[96.9,97.1,97],[99.9,100.1,100],[101.9,102.1,102],[104.9,105.1,105],[103.9,104.1,104],[100.9,101.1,101],[98.9,99.1,99],[96.9,97.1,97],[99.9,100.1,100],[102.9,103.1,103],[104.9,105.1,105],[101.9,102.1,102],[99.9,100.1,100]];
+function replay(quotes) {
+  const fills = [];
+  let cash = 100000, units = 0, previousAbove = null, signal = null;
+  const prices = quotes.map(q => Math.round(q[2] * 100));
+  for (let i = 0; i < quotes.length; i++) {
+    const [bid, ask] = quotes[i];
+    const last = i === quotes.length - 1;
+    if (signal?.side === 'Buy' && !units && !last && cash >= 2001) {
+      const price = ask * 1.0002;
+      units = 2000 / price;
+      cash -= 2001;
+      fills.push({side:'Buy', tick:i, signal, quote:ask, price, fee:1});
+    } else if (units && (last || signal?.side === 'Sell')) {
+      const price = bid * 0.9998;
+      const gross = units * price;
+      cash += gross * (1 - 0.0005);
+      fills.push({side:'Sell', tick:i, signal:signal?.side === 'Sell' ? signal : null, quote:bid, price, fee:gross * 0.0005});
+      units = 0;
+    }
+    signal = null;
+    if (i < 3 || last) continue;
+    const fastSum = prices[i] + prices[i-1];
+    const slowSum = fastSum + prices[i-2] + prices[i-3];
+    const above = fastSum * 2 > slowSum;
+    if (previousAbove !== null && above !== previousAbove) {
+      signal = {side:above ? 'Buy' : 'Sell', tick:i, fast:fastSum/200, slow:slowSum/400};
+    }
+    previousAbove = above;
+  }
+  return {cash, fills};
+}
+const el = id => document.getElementById(id);
+const money = new Intl.NumberFormat('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fresh = () => sample.map(q => [...q]);
+let quotes = fresh(), result = replay(quotes), selected = 0;
+function draw() {
+  const c=el('plot'), ctx=c.getContext('2d'), w=c.clientWidth, h=c.clientHeight;
+  if (!w || !h) return;
+  const dpr=window.devicePixelRatio || 1;
+  c.width=Math.round(w*dpr); c.height=Math.round(h*dpr); ctx.scale(dpr,dpr);
+  const prices=quotes.map(q=>q[2]), low=Math.min(...prices)-.5, high=Math.max(...prices)+.5;
+  const left=w<450?58:72, x=i=>left+i*(w-left-18)/15, y=p=>16+(high-p)*(h-48)/(high-low);
+  ctx.font='13px sans-serif'; ctx.lineWidth=1;
+  for(let j=0;j<=2;j++){const v=low+(high-low)*j/2;ctx.strokeStyle='#dce5e1';ctx.beginPath();ctx.moveTo(left,y(v));ctx.lineTo(w-12,y(v));ctx.stroke();ctx.fillStyle='#415754';ctx.fillText(v.toFixed(v>1000?0:1),2,y(v)+4);}
+  ctx.strokeStyle='#213f47';ctx.lineWidth=2;ctx.beginPath();prices.forEach((p,i)=>i?ctx.lineTo(x(i),y(p)):ctx.moveTo(x(i),y(p)));ctx.stroke();
+  for(const i of [0,3,7,11,15])ctx.fillText(String(i+1),x(i)-5,h-6);
+  const fill=result.fills[selected];if(!fill)return;
+  if(fill.signal){const i=fill.signal.tick;ctx.beginPath();ctx.arc(x(i),y(prices[i]),6,0,2*Math.PI);ctx.fillStyle='white';ctx.fill();ctx.strokeStyle='#a35e00';ctx.stroke();}
+  ctx.fillStyle='#08765a';ctx.fillRect(x(fill.tick)-5,y(prices[fill.tick])-5,10,10);
+}
+function inspect() {
+  const fill=result.fills[selected];
+  Array.from(el('choices').children).forEach((b,i)=>b.setAttribute('aria-pressed',String(i===selected)));
+  const panel=el('detail');panel.replaceChildren();
+  const line=t=>{const p=document.createElement('p');p.textContent=t;panel.append(p)};
+  if(!fill)line('No orders filled for these prices.');
+  else {
+    if(fill.signal){const s=fill.signal;line('Signal · Tick '+(s.tick+1)+': the 2-tick average ('+s.fast.toFixed(3)+') moved '+(s.side==='Buy'?'above':'to or below')+' the 4-tick average ('+s.slow.toFixed(3)+').');}
+    else line('Final tick · The simulator closes the open position at the end of the sample. No exit signal is required.');
+    line('Execution · Tick '+(fill.tick+1)+': '+fill.side+' at '+fill.price.toFixed(5)+' using the '+(fill.side==='Buy'?'ask':'bid')+' of '+fill.quote.toFixed(2)+(fill.side==='Buy'?' plus':' minus')+' 2 bps slippage. Fee: '+fill.fee.toFixed(4)+'.');
+  }
+  draw();
+}
+function populate() {
+  result=replay(quotes);selected=Math.min(selected,Math.max(0,result.fills.length-1));
+  el('count').textContent=quotes.length;el('num').textContent=result.fills.length;el('cash').textContent=money.format(result.cash);
+  el('choices').replaceChildren(...result.fills.map((f,i)=>{const b=document.createElement('button');b.textContent=f.side+' · Tick '+(f.tick+1);b.onclick=()=>{selected=i;inspect()};return b}));
+  el('rows').replaceChildren(...quotes.map((q,i)=>{const row=document.createElement('tr');for(const val of [i+1,'00:'+String(i).padStart(2,'0'),...q.map(n=>n.toFixed(2))]){const cell=document.createElement('td');cell.textContent=val;row.append(cell)}return row}));
+  inspect();
+}
+const picker=el('tick'), price=el('price');
+quotes.forEach((_,i)=>picker.add(new Option(String(i+1),String(i))));
+function syncPrice(){price.value=quotes[Number(picker.value)][2].toFixed(2)}
+picker.value='5';picker.onchange=syncPrice;
+el('edit').onsubmit=e=>{e.preventDefault();if(!e.currentTarget.reportValidity())return;const i=Number(picker.value),cents=Math.round(price.valueAsNumber*100);quotes[i]=[(cents-10)/100,(cents+10)/100,cents/100];populate();syncPrice();el('status').textContent='Replayed tick '+(i+1)+' at '+price.value+'.'};
+el('reset').onclick=()=>{quotes=fresh();selected=0;picker.value='5';syncPrice();populate();el('status').textContent='Original sample restored.'};
+syncPrice();populate();window.addEventListener('resize',draw);
+</script></html>
